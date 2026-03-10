@@ -28,6 +28,11 @@ Write to a custom output file:
 python ollama_benchmark.py --output-path ./my-report.json
 ```
 
+By default, reports are written to the `outputs/` folder using timestamped names:
+
+- Single model: `outputs/Ollama_<model>_benchmark_<timestamp>.json`
+- Multi-model run: `outputs/Ollama_multi_benchmark_<timestamp>.json`
+
 ## Tests
 
 Run the unit test suite:
@@ -38,10 +43,10 @@ python -m unittest discover -s tests -v
 
 ## Output
 
-Default output file:
+Default output location:
 
 ```text
-model-benchmark.json
+outputs/
 ```
 
 Each report entry includes metadata, capabilities, runtime performance, efficiency indicators, and workload recommendations.

@@ -42,32 +42,20 @@ class InstalledModelTests(unittest.TestCase):
 
 
 class MetadataAndScoringTests(unittest.TestCase):
-    def test_get_model_show_json_fallback_to_plain_output(self):
-        def runner(cmd):
-            if cmd == ["ollama", "show", "model-a", "--json"]:
-                raise RuntimeError("unsupported")
-            if cmd == ["ollama", "show", "model-a"]:
-                return (
-                    "Architecture: qwen2\n"
-                    "Parameters: 14B\n"
-                    "Quantization: Q4_K_M\n"
-                    "vision enabled\n"
-                    "temperature 0.7\n"
-                )
-            raise AssertionError(cmd)
+    def test_get_model_show_json_via_api(self):
+        payload = {"details": {"family": "qwen2"}, "capabilities": ["completion"]}
 
-        show = ob.get_model_show_json("model-a", command_runner=runner)
-        self.assertEqual(show["details"]["family"], "qwen2")
-        self.assertEqual(show["details"]["parameter_size"], "14B")
-        self.assertEqual(show["details"]["quantization_level"], "Q4_K_M")
-        self.assertIn("vision", show["capabilities"])
-        self.assertEqual(show["parameters"], "temperature 0.7")
+        def fetcher(model):
+            self.assertEqual(model, "model-a")
+            return payload
+
+        self.assertEqual(ob.get_model_show_json("model-a", show_fetcher=fetcher), payload)
 
     def test_get_model_show_json_handles_total_failure(self):
-        def runner(_cmd):
+        def fetcher(_model):
             raise RuntimeError("show failed")
 
-        self.assertEqual(ob.get_model_show_json("broken", command_runner=runner), {})
+        self.assertEqual(ob.get_model_show_json("broken", show_fetcher=fetcher), {})
 
     def test_get_model_metadata(self):
         payload = {
@@ -84,10 +72,7 @@ class MetadataAndScoringTests(unittest.TestCase):
             "modelfile": "PARAMETER temperature 0.6\nPARAMETER num_ctx 8192",
         }
 
-        def runner(cmd):
-            return json.dumps(payload)
-
-        meta = ob.get_model_metadata("reasoning-model", command_runner=runner)
+        meta = ob.get_model_metadata("reasoning-model", show_fetcher=lambda _model: payload)
         self.assertEqual(meta["architecture"], "llama")
         self.assertEqual(meta["parameters"], 7.0)
         self.assertTrue(meta["acceptsTools"])
@@ -111,6 +96,19 @@ class MetadataAndScoringTests(unittest.TestCase):
         rich = ob.get_workload_recommendations(30, 0.5, 131072, True, ["vision"], True)
         self.assertIn("interactive chat and coding assistants", rich)
         self.assertIn("multimodal image+text analysis", rich)
+
+
+class OutputPathTests(unittest.TestCase):
+    def test_build_default_output_path_single_model(self):
+        dt = ob.datetime(2024, 1, 2, 3, 4, 5)
+        path = ob.build_default_output_path("qwen2.5-coder:14b", now=dt)
+        self.assertEqual(path.as_posix(), "outputs/Ollama_qwen2.5-coder_14b_benchmark_20240102_030405.json")
+
+    def test_build_default_output_path_multi_model(self):
+        dt = ob.datetime(2024, 1, 2, 3, 4, 5)
+        path = ob.build_default_output_path(None, now=dt)
+        self.assertEqual(path.as_posix(), "outputs/Ollama_multi_benchmark_20240102_030405.json")
+
 
 
 class BenchmarkFlowTests(unittest.TestCase):
