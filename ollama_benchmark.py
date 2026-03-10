@@ -14,6 +14,7 @@ from typing import Any, Callable
 from urllib import request
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_SHOW_URL = "http://localhost:11434/api/show"
 CONTEXT_TESTS = [8192, 16384, 32768, 65536, 131072]
 DEFAULT_CONTEXT_WINDOW = 4096
 BENCHMARK_PROMPT = "Explain the CAP theorem in distributed systems."
@@ -131,45 +132,25 @@ def get_installed_models(command_runner: Callable[[list[str]], str] = run_comman
     return models
 
 
-def get_model_show_json(model: str, command_runner: Callable[[list[str]], str] = run_command) -> dict[str, Any]:
-    try:
-        output = command_runner(["ollama", "show", model, "--json"])
-        return json.loads(output)
-    except Exception:
-        log(f"'ollama show {model} --json' unsupported, falling back to plain 'ollama show' output parsing")
+def invoke_ollama_show(model: str) -> dict[str, Any]:
+    body = json.dumps({"model": model}).encode("utf-8")
 
+    req = request.Request(
+        OLLAMA_SHOW_URL,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=120) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def get_model_show_json(model: str, show_fetcher: Callable[[str], dict[str, Any]] = invoke_ollama_show) -> dict[str, Any]:
     try:
-        output = command_runner(["ollama", "show", model])
+        return show_fetcher(model)
     except Exception:
         log(f"Unable to inspect model metadata for {model}; using defaults")
         return {}
-
-    details: dict[str, Any] = {}
-    capabilities: list[str] = []
-    parameters: list[str] = []
-    for line in output.splitlines():
-        trimmed = line.strip()
-        if not trimmed:
-            continue
-        lower = trimmed.lower()
-        if lower.startswith("architecture"):
-            details["family"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
-        elif lower.startswith("parameters"):
-            details["parameter_size"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
-        elif lower.startswith("quantization"):
-            details["quantization_level"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
-        elif "vision" in lower:
-            capabilities.append("vision")
-        elif "embedding" in lower:
-            capabilities.append("embedding")
-        elif re.match(r"^[a-z_]+\s+.+$", trimmed):
-            parameters.append(trimmed)
-
-    return {
-        "details": details,
-        "capabilities": ["completion"] + sorted(set(capabilities)),
-        "parameters": "\n".join(parameters),
-    }
 
 
 def get_model_info_value(model_info: dict[str, Any], preferred_keys: list[str], suffix: str | None = None) -> Any:
@@ -183,8 +164,8 @@ def get_model_info_value(model_info: dict[str, Any], preferred_keys: list[str], 
     return None
 
 
-def get_model_metadata(model: str, command_runner: Callable[[list[str]], str] = run_command) -> dict[str, Any]:
-    show = get_model_show_json(model, command_runner=command_runner)
+def get_model_metadata(model: str, show_fetcher: Callable[[str], dict[str, Any]] = invoke_ollama_show) -> dict[str, Any]:
+    show = get_model_show_json(model, show_fetcher=show_fetcher)
     model_info = show.get("model_info") or {}
     details = show.get("details") or {}
 
@@ -473,15 +454,33 @@ def run_benchmark(model_id: str | None = None) -> list[dict[str, Any]]:
     return results
 
 
+def sanitize_model_name(model_name: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", model_name).strip("_")
+    return sanitized or "unknown"
+
+
+def build_default_output_path(model_id: str | None, now: datetime | None = None) -> Path:
+    timestamp = (now or datetime.now()).strftime("%Y%m%d_%H%M%S")
+    outputs_dir = Path("outputs")
+
+    if model_id:
+        filename = f"Ollama_{sanitize_model_name(model_id)}_benchmark_{timestamp}.json"
+    else:
+        filename = f"Ollama_multi_benchmark_{timestamp}.json"
+
+    return outputs_dir / filename
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Benchmark locally installed Ollama models")
     parser.add_argument("--model-id", default=None, help="Benchmark only this model ID")
-    parser.add_argument("--output-path", default="model-benchmark.json", help="Output JSON path")
+    parser.add_argument("--output-path", default=None, help="Output JSON path")
     args = parser.parse_args(argv)
 
     results = run_benchmark(model_id=args.model_id)
 
-    output_path = Path(args.output_path)
+    output_path = Path(args.output_path) if args.output_path else build_default_output_path(args.model_id)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     log("Benchmark complete")
