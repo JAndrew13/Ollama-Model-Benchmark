@@ -192,7 +192,7 @@ def get_model_metadata(model: str, show_fetcher: Callable[[str], dict[str, Any]]
         or 0
     )
 
-    quantization = str(get_model_info_value(model_info, ["general.file_type"]) or "")
+    quantization = ""
 
     if not architecture and details.get("family"):
         architecture = str(details["family"])
@@ -202,8 +202,11 @@ def get_model_metadata(model: str, show_fetcher: Callable[[str], dict[str, Any]]
         if match:
             parameters = float(match.group(1))
 
-    if not quantization and details.get("quantization_level"):
-        quantization = str(details["quantization_level"])
+    detail_quantization = str(details.get("quantization_level") or "").strip()
+    if detail_quantization:
+        quantization = detail_quantization
+    else:
+        quantization = str(get_model_info_value(model_info, ["general.file_type"]) or "").strip()
 
     capabilities = show.get("capabilities") or ["completion"]
     if not capabilities:
