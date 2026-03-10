@@ -132,8 +132,44 @@ def get_installed_models(command_runner: Callable[[list[str]], str] = run_comman
 
 
 def get_model_show_json(model: str, command_runner: Callable[[list[str]], str] = run_command) -> dict[str, Any]:
-    output = command_runner(["ollama", "show", model, "--json"])
-    return json.loads(output)
+    try:
+        output = command_runner(["ollama", "show", model, "--json"])
+        return json.loads(output)
+    except Exception:
+        log(f"'ollama show {model} --json' unsupported, falling back to plain 'ollama show' output parsing")
+
+    try:
+        output = command_runner(["ollama", "show", model])
+    except Exception:
+        log(f"Unable to inspect model metadata for {model}; using defaults")
+        return {}
+
+    details: dict[str, Any] = {}
+    capabilities: list[str] = []
+    parameters: list[str] = []
+    for line in output.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        lower = trimmed.lower()
+        if lower.startswith("architecture"):
+            details["family"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
+        elif lower.startswith("parameters"):
+            details["parameter_size"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
+        elif lower.startswith("quantization"):
+            details["quantization_level"] = trimmed.split(":", 1)[-1].strip() if ":" in trimmed else ""
+        elif "vision" in lower:
+            capabilities.append("vision")
+        elif "embedding" in lower:
+            capabilities.append("embedding")
+        elif re.match(r"^[a-z_]+\s+.+$", trimmed):
+            parameters.append(trimmed)
+
+    return {
+        "details": details,
+        "capabilities": ["completion"] + sorted(set(capabilities)),
+        "parameters": "\n".join(parameters),
+    }
 
 
 def get_model_info_value(model_info: dict[str, Any], preferred_keys: list[str], suffix: str | None = None) -> Any:

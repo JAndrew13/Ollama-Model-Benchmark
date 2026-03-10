@@ -42,6 +42,33 @@ class InstalledModelTests(unittest.TestCase):
 
 
 class MetadataAndScoringTests(unittest.TestCase):
+    def test_get_model_show_json_fallback_to_plain_output(self):
+        def runner(cmd):
+            if cmd == ["ollama", "show", "model-a", "--json"]:
+                raise RuntimeError("unsupported")
+            if cmd == ["ollama", "show", "model-a"]:
+                return (
+                    "Architecture: qwen2\n"
+                    "Parameters: 14B\n"
+                    "Quantization: Q4_K_M\n"
+                    "vision enabled\n"
+                    "temperature 0.7\n"
+                )
+            raise AssertionError(cmd)
+
+        show = ob.get_model_show_json("model-a", command_runner=runner)
+        self.assertEqual(show["details"]["family"], "qwen2")
+        self.assertEqual(show["details"]["parameter_size"], "14B")
+        self.assertEqual(show["details"]["quantization_level"], "Q4_K_M")
+        self.assertIn("vision", show["capabilities"])
+        self.assertEqual(show["parameters"], "temperature 0.7")
+
+    def test_get_model_show_json_handles_total_failure(self):
+        def runner(_cmd):
+            raise RuntimeError("show failed")
+
+        self.assertEqual(ob.get_model_show_json("broken", command_runner=runner), {})
+
     def test_get_model_metadata(self):
         payload = {
             "model_info": {
