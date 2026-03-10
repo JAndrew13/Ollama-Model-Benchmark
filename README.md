@@ -88,7 +88,7 @@ For each model, the report includes:
 
 ## Benchmark process
 
-1. Discover models with `ollama list --json`.
+1. Discover models with `ollama list --json` (or fallback to parsing `ollama list` when `--json` is unavailable).
 2. Read model metadata/capabilities via `ollama show --json`.
 3. Probe stable context across configured context test sizes.
 4. Run a generation benchmark with fixed prompt + token target.
