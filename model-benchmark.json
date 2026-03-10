@@ -1,0 +1,202 @@
+﻿[
+    {
+        "firstTokenLatencySec":  0.147185,
+        "id":  "crisp-im/Qwen3-30B-A3B-Instruct-2507-UD-Q4_K_XL:latest",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  23.6181976,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  2,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  7.1,
+        "name":  "crisp-im/Qwen3-30B-A3B-Instruct-2507-UD-Q4_K_XL:latest",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.0293816,
+        "id":  "qwen2.5-coder:14b",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  3.5151977,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  1.6,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  32.29,
+        "name":  "qwen2.5-coder:14b",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.0239981,
+        "id":  "gemma3:12b",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  3.3128377,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  0.1,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  34.38,
+        "name":  "gemma3:12b",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.016382,
+        "id":  "qwen3-vl:8b",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  3.5928164,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  1.8,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  38.77,
+        "name":  "qwen3-vl:8b",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.0642666,
+        "id":  "gpt-oss:20b",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  3.5859444,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  18,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  38.28,
+        "name":  "gpt-oss:20b",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  2.3673099,
+        "id":  "deepseek-r1:latest",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  2.6549103,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  4,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  30.28,
+        "name":  "deepseek-r1:latest",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.2672926,
+        "id":  "glm-4.7-flash:latest",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  25.0730081,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  2.3,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  6.41,
+        "name":  "glm-4.7-flash:latest",
+        "architecture":  "",
+        "contextWindow":  131072
+    },
+    {
+        "firstTokenLatencySec":  0.0258465,
+        "id":  "qwen3:8b",
+        "capabilities":  [
+                             "completion"
+                         ],
+        "embeddingLength":  0,
+        "gpuMemoryMB":  0,
+        "quantization":  "",
+        "loadTimeSec":  2.1771556,
+        "parameters":  0,
+        "input":  [
+                      "text"
+                  ],
+        "gpuUtilizationPercent":  0,
+        "family":  "",
+        "cpuUtilizationPercent":  10.5,
+        "maxTokens":  32768,
+        "api":  "ollama",
+        "reasoning":  false,
+        "tokensPerSecond":  52.78,
+        "name":  "qwen3:8b",
+        "architecture":  "",
+        "contextWindow":  131072
+    }
+]
