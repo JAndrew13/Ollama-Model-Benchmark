@@ -80,6 +80,20 @@ class MetadataAndScoringTests(unittest.TestCase):
         self.assertIn("image", meta["inputTypes"])
         self.assertIn("vector", meta["outputTypes"])
 
+    def test_get_model_metadata_prefers_details_quantization_level(self):
+        payload = {
+            "model_info": {
+                "general.architecture": "qwen2",
+                "general.parameter_count": 14800000000,
+                "general.file_type": "15",
+            },
+            "details": {"quantization_level": "Q4_K_M"},
+            "capabilities": ["completion"],
+        }
+
+        meta = ob.get_model_metadata("qwen2.5-coder:14b", show_fetcher=lambda _model: payload)
+        self.assertEqual(meta["quantization"], "Q4_K_M")
+
     def test_efficiency_and_runtime_profiles(self):
         efficiency = ob.get_efficiency_profile(40, 0.2, 1.0, 8, 8192)
         self.assertEqual(efficiency["tokensPerSecondPerBParameter"], 5.0)
