@@ -109,18 +109,51 @@ function Parse-ModelParameters {
 }
 
 function Get-InstalledModels {
-    $jsonOutput = ollama list --json 2>$null
-    if (-not $jsonOutput) {
-        throw "Unable to read installed models from 'ollama list --json'."
+    $jsonOutput = $null
+
+    try {
+        $jsonOutput = ollama list --json 2>$null
+    }
+    catch {
+        $jsonOutput = $null
     }
 
-    $parsed = $jsonOutput | ConvertFrom-Json
+    if ($jsonOutput) {
+        $parsed = $jsonOutput | ConvertFrom-Json
 
-    if ($parsed -is [array]) {
-        return $parsed
+        if ($parsed -is [array]) {
+            return $parsed
+        }
+
+        return @($parsed)
     }
 
-    return @($parsed)
+    Log "'ollama list --json' unsupported, falling back to plain 'ollama list' output parsing"
+
+    $listOutput = ollama list
+    if (-not $listOutput) {
+        throw "Unable to read installed models from 'ollama list'."
+    }
+
+    $models = @()
+    $lines = $listOutput -split "`r?`n"
+
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed) { continue }
+        if ($trimmed -match '^NAME\s+') { continue }
+
+        if ($trimmed -match '^([^\s]+)\s+') {
+            $modelName = $matches[1]
+            $models += [PSCustomObject]@{ name = $modelName }
+        }
+    }
+
+    if ($models.Count -eq 0) {
+        throw "Unable to parse installed models from 'ollama list' output."
+    }
+
+    return $models
 }
 
 function Get-ModelShowJson {
