@@ -157,6 +157,15 @@
         return flag ? '<span class="check">✓</span>' : '<span class="value">—</span>';
       }
 
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
       function money(value) {
         if (typeof value !== "number" || Number.isNaN(value)) return "—";
         return `$${value.toFixed(2)} / M tokens`;
@@ -168,7 +177,7 @@
           `Compatibility: ${model.compatibilityLabel || "unknown"}`,
           `Execution: ${model.executionRecommendation || "unknown"}`
         ];
-        return parts.join(" · ");
+        return escapeHtml(parts.join(" · "));
       }
 
       function randomBars(seed) {
@@ -191,22 +200,26 @@
         if (!model) return "";
         const bars = randomBars((model.compatibilityScore || 1) * 17 + index + model.id.length);
         const providerCount = model.provider ? 1 : 0;
-        const inputModalities = Array.isArray(model.inputModalities) ? model.inputModalities.join(", ") : "text";
-        const outputModalities = Array.isArray(model.outputModalities) ? model.outputModalities.join(", ") : "text";
+        const inputModalities = escapeHtml(Array.isArray(model.inputModalities) ? model.inputModalities.join(", ") : "text");
+        const outputModalities = escapeHtml(Array.isArray(model.outputModalities) ? model.outputModalities.join(", ") : "text");
+        const family = escapeHtml(model.family || "unknown");
+        const provider = escapeHtml(model.provider || "—");
+        const quantization = escapeHtml(model.quantization || "—");
+        const pricingNotes = escapeHtml(model.pricing?.notes || "—");
 
         return `
           <article class="column">
             <div class="selector-wrap">
               <select class="selector" data-slot="${index}">
                 ${allModels
-                  .map((m) => `<option value="${m.id}" ${m.id === model.id ? "selected" : ""}>${m.name || m.id}</option>`)
+                  .map((m) => `<option value="${escapeHtml(m.id)}" ${m.id === model.id ? "selected" : ""}>${escapeHtml(m.name || m.id)}</option>`)
                   .join("")}
               </select>
             </div>
             <div class="card">
               <div class="section">
                 <div class="rows">
-                  <div class="row"><div class="label">Author</div><div class="value">${model.family || "unknown"}</div></div>
+                  <div class="row"><div class="label">Author</div><div class="value">${family}</div></div>
                   <div class="row"><div class="label">Context Length</div><div class="value">${formatContext(model.contextLength)}</div></div>
                   <div class="row"><div class="label">Reasoning</div><div>${yesNo(true)}</div></div>
                   <div class="row"><div class="label">Providers</div><div class="value">${providerCount}</div></div>
@@ -226,7 +239,7 @@
 
               <div class="section">
                 <div class="rows">
-                  <div class="row"><div class="label">Provider</div><div class="value">${model.provider || "—"}</div></div>
+                  <div class="row"><div class="label">Provider</div><div class="value">${provider}</div></div>
                   <div class="row"><div class="label">Latency (p50)</div><div class="value">—</div></div>
                   <div class="row"><div class="label">Throughput (p50)</div><div class="value">—</div></div>
                 </div>
@@ -237,7 +250,7 @@
                 <div class="rows">
                   <div class="row"><div class="label">Input</div><div class="value">${money(model.pricing?.inputPerMTokensUSD)}</div></div>
                   <div class="row"><div class="label">Output</div><div class="value">${money(model.pricing?.outputPerMTokensUSD)}</div></div>
-                  <div class="row"><div class="label">Notes</div><div class="value">${model.pricing?.notes || "—"}</div></div>
+                  <div class="row"><div class="label">Notes</div><div class="value">${pricingNotes}</div></div>
                 </div>
               </div>
 
@@ -246,7 +259,7 @@
                 <div class="rows">
                   <div class="row"><div class="label">Input Modalities</div><div class="value">${inputModalities}</div></div>
                   <div class="row"><div class="label">Output Modalities</div><div class="value">${outputModalities}</div></div>
-                  <div class="row"><div class="label">Quantization</div><div class="value">${model.quantization || "—"}</div></div>
+                  <div class="row"><div class="label">Quantization</div><div class="value">${quantization}</div></div>
                   <div class="row"><div class="label">Max Tokens (input + output)</div><div class="value">${formatContext(model.contextLength)}</div></div>
                   <div class="row"><div class="label">Max Output Tokens</div><div class="value">—</div></div>
                   <div class="row"><div class="label">Stream cancellation</div><div>${yesNo(true)}</div></div>
@@ -302,7 +315,7 @@
           render();
         } catch (error) {
           status.classList.add("error");
-          status.innerHTML = `Failed to load <code>/outputs/model_comparison.json</code>. ${String(error)}. Run <code>python model_comparison_tool.py --output outputs/model_comparison.json</code> and serve the repo with <code>python -m http.server 8000</code>.`;
+          status.textContent = `Failed to load /outputs/model_comparison.json. ${String(error)}. Run python model_comparison_tool.py --output outputs/model_comparison.json and serve the repo with python -m http.server 8000.`;
           document.getElementById("comparison").innerHTML = "";
         }
       }
