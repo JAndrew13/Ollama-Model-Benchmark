@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Model Comparison</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --card: #fff;
+        --border: #d7dbe1;
+        --muted: #6f7785;
+        --text: #182132;
+        --blue: #1184ff;
+        --amber: #f3ad1f;
+        --green: #16b886;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .page {
+        padding: 24px;
+        max-width: 1900px;
+        margin: 0 auto;
+      }
+      .status {
+        margin-bottom: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        font-size: 14px;
+      }
+      .status.error {
+        border-color: #e58f95;
+        background: #fff5f6;
+        color: #8d2029;
+      }
+      .comparison-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(4, minmax(260px, 1fr));
+        align-items: start;
+      }
+      .column { min-width: 0; }
+      .selector-wrap {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        margin-bottom: 12px;
+      }
+      .selector {
+        width: 100%;
+        border: 0;
+        font-size: 22px;
+        font-weight: 650;
+        color: #061325;
+        background: transparent;
+        outline: none;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .section {
+        margin-bottom: 18px;
+        border-bottom: 1px solid #e4e7ec;
+        padding-bottom: 14px;
+      }
+      .section:last-child {
+        border-bottom: 0;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+      .rows { display: grid; row-gap: 10px; }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        font-size: 15px;
+        line-height: 1.4;
+      }
+      .label { color: var(--muted); }
+      .value { font-weight: 600; color: #0f172a; }
+      .desc {
+        color: #475166;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-top: 10px;
+      }
+      .section-title { font-size: 22px; margin: 0 0 12px; letter-spacing: -0.01em; }
+      .legend { margin-top: 12px; font-size: 14px; display: grid; row-gap: 6px; }
+      .legend-line {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .dot { width: 10px; height: 10px; border-radius: 999px; }
+      .check {
+        display: inline-grid;
+        place-items: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        font-size: 12px;
+        color: #fff;
+        background: #3ebd8a;
+      }
+      .bars {
+        margin-top: 6px;
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 110px;
+      }
+      .bar {
+        flex: 1;
+        min-width: 2px;
+        border-radius: 2px 2px 0 0;
+        background: linear-gradient(to top, #0b76dd 0 72%, #f7b01b 72% 100%);
+        opacity: 0.96;
+      }
+      .subtle { color: var(--muted); font-size: 13px; }
+      @media (max-width: 1350px) {
+        .comparison-grid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+      }
+      @media (max-width: 760px) {
+        .page { padding: 16px; }
+        .comparison-grid { grid-template-columns: 1fr; }
+        .selector { font-size: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="status" id="status">Loading models from <code>/outputs/model_comparison.json</code>…</div>
+      <section class="comparison-grid" id="comparison"></section>
+    </main>
+
+    <script>
+      const MAX_COLUMNS = 4;
+      const JSON_CANDIDATES = ["/outputs/model_comparison.json", "../outputs/model_comparison.json"];
+
+      let allModels = [];
+      let slots = [];
+
+      function yesNo(flag) {
+        return flag ? '<span class="check">✓</span>' : '<span class="value">—</span>';
+      }
+
+      function money(value) {
+        if (typeof value !== "number" || Number.isNaN(value)) return "—";
+        return `$${value.toFixed(2)} / M tokens`;
+      }
+
+      function modelDescription(model) {
+        const parts = [
+          `Family: ${model.family || "unknown"}`,
+          `Compatibility: ${model.compatibilityLabel || "unknown"}`,
+          `Execution: ${model.executionRecommendation || "unknown"}`
+        ];
+        return parts.join(" · ");
+      }
+
+      function randomBars(seed) {
+        let value = Math.max(1, seed);
+        return Array.from({ length: 32 }, () => {
+          value = (value * 9301 + 49297) % 233280;
+          return 20 + Math.floor((value / 233280) * 86);
+        });
+      }
+
+      function byId(id) {
+        return allModels.find((m) => m.id === id) || allModels[0];
+      }
+
+      function formatContext(value) {
+        return value ? value.toLocaleString() : "—";
+      }
+
+      function renderCard(model, index) {
+        if (!model) return "";
+        const bars = randomBars((model.compatibilityScore || 1) * 17 + index + model.id.length);
+        const providerCount = model.provider ? 1 : 0;
+        const inputModalities = Array.isArray(model.inputModalities) ? model.inputModalities.join(", ") : "text";
+        const outputModalities = Array.isArray(model.outputModalities) ? model.outputModalities.join(", ") : "text";
+
+        return `
+          <article class="column">
+            <div class="selector-wrap">
+              <select class="selector" data-slot="${index}">
+                ${allModels
+                  .map((m) => `<option value="${m.id}" ${m.id === model.id ? "selected" : ""}>${m.name || m.id}</option>`)
+                  .join("")}
+              </select>
+            </div>
+            <div class="card">
+              <div class="section">
+                <div class="rows">
+                  <div class="row"><div class="label">Author</div><div class="value">${model.family || "unknown"}</div></div>
+                  <div class="row"><div class="label">Context Length</div><div class="value">${formatContext(model.contextLength)}</div></div>
+                  <div class="row"><div class="label">Reasoning</div><div>${yesNo(true)}</div></div>
+                  <div class="row"><div class="label">Providers</div><div class="value">${providerCount}</div></div>
+                </div>
+                <p class="desc">${modelDescription(model)}</p>
+              </div>
+
+              <div class="section">
+                <h3 class="section-title">Activity</h3>
+                <div class="bars">${bars.map((height) => `<div class="bar" style="height:${height}px"></div>`).join("")}</div>
+                <div class="legend">
+                  <div class="legend-line"><span class="dot" style="background:var(--blue)"></span><span>Params</span><span class="subtle">${model.parametersB || 0}B</span></div>
+                  <div class="legend-line"><span class="dot" style="background:var(--amber)"></span><span>Required RAM/VRAM</span><span class="subtle">${model.requiredMemoryGB || 0} GB</span></div>
+                  <div class="legend-line"><span class="dot" style="background:var(--green)"></span><span>Compatibility</span><span class="subtle">${model.compatibilityScore || "—"}/5</span></div>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="rows">
+                  <div class="row"><div class="label">Provider</div><div class="value">${model.provider || "—"}</div></div>
+                  <div class="row"><div class="label">Latency (p50)</div><div class="value">—</div></div>
+                  <div class="row"><div class="label">Throughput (p50)</div><div class="value">—</div></div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h4 style="margin:0 0 10px;font-size:22px">Pricing</h4>
+                <div class="rows">
+                  <div class="row"><div class="label">Input</div><div class="value">${money(model.pricing?.inputPerMTokensUSD)}</div></div>
+                  <div class="row"><div class="label">Output</div><div class="value">${money(model.pricing?.outputPerMTokensUSD)}</div></div>
+                  <div class="row"><div class="label">Notes</div><div class="value">${model.pricing?.notes || "—"}</div></div>
+                </div>
+              </div>
+
+              <div class="section">
+                <h4 style="margin:0 0 10px;font-size:22px">Features</h4>
+                <div class="rows">
+                  <div class="row"><div class="label">Input Modalities</div><div class="value">${inputModalities}</div></div>
+                  <div class="row"><div class="label">Output Modalities</div><div class="value">${outputModalities}</div></div>
+                  <div class="row"><div class="label">Quantization</div><div class="value">${model.quantization || "—"}</div></div>
+                  <div class="row"><div class="label">Max Tokens (input + output)</div><div class="value">${formatContext(model.contextLength)}</div></div>
+                  <div class="row"><div class="label">Max Output Tokens</div><div class="value">—</div></div>
+                  <div class="row"><div class="label">Stream cancellation</div><div>${yesNo(true)}</div></div>
+                  <div class="row"><div class="label">Supports Tools</div><div>${yesNo(Boolean(model.supportsToolUse))}</div></div>
+                  <div class="row"><div class="label">No Prompt Training</div><div>${yesNo(true)}</div></div>
+                  <div class="row"><div class="label">Caching</div><div>${yesNo(true)}</div></div>
+                </div>
+              </div>
+            </div>
+          </article>`;
+      }
+
+      function render() {
+        const container = document.getElementById("comparison");
+        container.innerHTML = slots.map((id, i) => renderCard(byId(id), i)).join("");
+        container.querySelectorAll(".selector").forEach((select) => {
+          select.addEventListener("change", (event) => {
+            const slot = Number(event.target.dataset.slot);
+            slots[slot] = event.target.value;
+            render();
+          });
+        });
+      }
+
+      async function fetchReport() {
+        let lastError = null;
+        for (const path of JSON_CANDIDATES) {
+          try {
+            const response = await fetch(path, { cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            return { data, path };
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error("Unable to load model_comparison.json");
+      }
+
+      async function boot() {
+        const status = document.getElementById("status");
+        try {
+          const { data, path } = await fetchReport();
+          allModels = Array.isArray(data.models) ? data.models : [];
+          if (!allModels.length) {
+            throw new Error("No models found in model_comparison.json");
+          }
+
+          slots = allModels.slice(0, MAX_COLUMNS).map((model) => model.id);
+          while (slots.length < MAX_COLUMNS) slots.push(allModels[0].id);
+
+          status.textContent = `Loaded ${allModels.length} models from ${path}.`; 
+          render();
+        } catch (error) {
+          status.classList.add("error");
+          status.innerHTML = `Failed to load <code>/outputs/model_comparison.json</code>. ${String(error)}. Run <code>python model_comparison_tool.py --output outputs/model_comparison.json</code> and serve the repo with <code>python -m http.server 8000</code>.`;
+          document.getElementById("comparison").innerHTML = "";
+        }
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

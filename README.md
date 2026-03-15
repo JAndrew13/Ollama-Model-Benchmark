@@ -73,3 +73,25 @@ The generated JSON includes:
 - Compatibility score from **1 (best local fit)** to **5 (not locally compatible)**
 - Execution recommendation (`local-preferred`, `hybrid`, `api-preferred`)
 - Family-level local/API recommendations
+
+## Static Model Compare Page
+
+A standalone OpenRouter-style comparison UI is available at:
+
+```text
+web/model_compare.html
+```
+
+Open it directly in a browser, or serve the repo root:
+
+```bash
+python -m http.server 8000
+```
+
+Then visit `http://localhost:8000/web/model_compare.html`.
+
+The page loads model data directly from `outputs/model_comparison.json`, so generate or refresh that file first:
+
+```bash
+python model_comparison_tool.py --output outputs/model_comparison.json
+```
