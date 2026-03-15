@@ -97,14 +97,6 @@
         margin-top: 10px;
       }
       .section-title { font-size: 22px; margin: 0 0 12px; letter-spacing: -0.01em; }
-      .legend { margin-top: 12px; font-size: 14px; display: grid; row-gap: 6px; }
-      .legend-line {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 8px;
-        align-items: center;
-      }
-      .dot { width: 10px; height: 10px; border-radius: 999px; }
       .check {
         display: inline-grid;
         place-items: center;
@@ -114,20 +106,6 @@
         font-size: 12px;
         color: #fff;
         background: #3ebd8a;
-      }
-      .bars {
-        margin-top: 6px;
-        display: flex;
-        align-items: flex-end;
-        gap: 2px;
-        height: 110px;
-      }
-      .bar {
-        flex: 1;
-        min-width: 2px;
-        border-radius: 2px 2px 0 0;
-        background: linear-gradient(to top, #0b76dd 0 72%, #f7b01b 72% 100%);
-        opacity: 0.96;
       }
       .subtle { color: var(--muted); font-size: 13px; }
       @media (max-width: 1350px) {
@@ -154,7 +132,8 @@
       let slots = [];
 
       function yesNo(flag) {
-        return flag ? '<span class="check">✓</span>' : '<span class="value">—</span>';
+        if (flag === null || flag === undefined) return '<span class="value">—</span>';
+        return flag ? '<span class="check">✓</span>' : '<span class="value">✗</span>';
       }
 
       function escapeHtml(value) {
@@ -180,14 +159,6 @@
         return escapeHtml(parts.join(" · "));
       }
 
-      function randomBars(seed) {
-        let value = Math.max(1, seed);
-        return Array.from({ length: 32 }, () => {
-          value = (value * 9301 + 49297) % 233280;
-          return 20 + Math.floor((value / 233280) * 86);
-        });
-      }
-
       function byId(id) {
         return allModels.find((m) => m.id === id) || allModels[0];
       }
@@ -198,8 +169,6 @@
 
       function renderCard(model, index) {
         if (!model) return "";
-        const bars = randomBars((model.compatibilityScore || 1) * 17 + index + model.id.length);
-        const providerCount = model.provider ? 1 : 0;
         const inputModalities = escapeHtml(Array.isArray(model.inputModalities) ? model.inputModalities.join(", ") : "text");
         const outputModalities = escapeHtml(Array.isArray(model.outputModalities) ? model.outputModalities.join(", ") : "text");
         const family = escapeHtml(model.family || "unknown");
@@ -221,19 +190,19 @@
                 <div class="rows">
                   <div class="row"><div class="label">Author</div><div class="value">${family}</div></div>
                   <div class="row"><div class="label">Context Length</div><div class="value">${formatContext(model.contextLength)}</div></div>
-                  <div class="row"><div class="label">Reasoning</div><div>${yesNo(true)}</div></div>
-                  <div class="row"><div class="label">Providers</div><div class="value">${providerCount}</div></div>
+                  <div class="row"><div class="label">Reasoning</div><div>${yesNo(null)}</div></div>
+                  <div class="row"><div class="label">Provider</div><div class="value">${provider}</div></div>
                 </div>
                 <p class="desc">${modelDescription(model)}</p>
               </div>
 
               <div class="section">
-                <h3 class="section-title">Activity</h3>
-                <div class="bars">${bars.map((height) => `<div class="bar" style="height:${height}px"></div>`).join("")}</div>
-                <div class="legend">
-                  <div class="legend-line"><span class="dot" style="background:var(--blue)"></span><span>Params</span><span class="subtle">${model.parametersB || 0}B</span></div>
-                  <div class="legend-line"><span class="dot" style="background:var(--amber)"></span><span>Required RAM/VRAM</span><span class="subtle">${model.requiredMemoryGB || 0} GB</span></div>
-                  <div class="legend-line"><span class="dot" style="background:var(--green)"></span><span>Compatibility</span><span class="subtle">${model.compatibilityScore || "—"}/5</span></div>
+                <h3 class="section-title">Model Footprint</h3>
+                <div class="rows">
+                  <div class="row"><div class="label">Params</div><div class="value">${model.parametersB || 0}B</div></div>
+                  <div class="row"><div class="label">Required RAM/VRAM</div><div class="value">${model.requiredMemoryGB || 0} GB</div></div>
+                  <div class="row"><div class="label">Model Size</div><div class="value">${model.sizeGB || 0} GB</div></div>
+                  <div class="row"><div class="label">Compatibility</div><div class="value">${model.compatibilityScore || "—"}/5</div></div>
                 </div>
               </div>
 
@@ -262,10 +231,10 @@
                   <div class="row"><div class="label">Quantization</div><div class="value">${quantization}</div></div>
                   <div class="row"><div class="label">Max Tokens (input + output)</div><div class="value">${formatContext(model.contextLength)}</div></div>
                   <div class="row"><div class="label">Max Output Tokens</div><div class="value">—</div></div>
-                  <div class="row"><div class="label">Stream cancellation</div><div>${yesNo(true)}</div></div>
+                  <div class="row"><div class="label">Stream cancellation</div><div>${yesNo(null)}</div></div>
                   <div class="row"><div class="label">Supports Tools</div><div>${yesNo(Boolean(model.supportsToolUse))}</div></div>
-                  <div class="row"><div class="label">No Prompt Training</div><div>${yesNo(true)}</div></div>
-                  <div class="row"><div class="label">Caching</div><div>${yesNo(true)}</div></div>
+                  <div class="row"><div class="label">No Prompt Training</div><div>${yesNo(null)}</div></div>
+                  <div class="row"><div class="label">Caching</div><div>${yesNo(null)}</div></div>
                 </div>
               </div>
             </div>
