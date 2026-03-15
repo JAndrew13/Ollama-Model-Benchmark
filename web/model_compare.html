@@ -126,10 +126,11 @@
 
     <script>
       const MAX_COLUMNS = 4;
-      const JSON_CANDIDATES = ["/outputs/model_comparison.json", "../outputs/model_comparison.json"];
+      const JSON_CANDIDATES = ["/outputs/model_comparison.json", "../outputs/model_comparison.json", "/model-comparison.json", "../model-comparison.json"];
 
       let allModels = [];
       let slots = [];
+      let installedIds = new Set();
 
       function yesNo(flag) {
         if (flag === null || flag === undefined) return '<span class="value">—</span>';
@@ -163,6 +164,19 @@
         return allModels.find((m) => m.id === id) || allModels[0];
       }
 
+      function normalizeModelId(value) {
+        return String(value || "").toLowerCase().replace(":latest", "").trim();
+      }
+
+      function sortedModelsForDropdown() {
+        return [...allModels].sort((a, b) => {
+          const aInstalled = installedIds.has(normalizeModelId(a.id));
+          const bInstalled = installedIds.has(normalizeModelId(b.id));
+          if (aInstalled !== bInstalled) return aInstalled ? -1 : 1;
+          return String(a.name || a.id).localeCompare(String(b.name || b.id));
+        });
+      }
+
       function formatContext(value) {
         return value ? value.toLocaleString() : "—";
       }
@@ -180,8 +194,12 @@
           <article class="column">
             <div class="selector-wrap">
               <select class="selector" data-slot="${index}">
-                ${allModels
-                  .map((m) => `<option value="${escapeHtml(m.id)}" ${m.id === model.id ? "selected" : ""}>${escapeHtml(m.name || m.id)}</option>`)
+                ${sortedModelsForDropdown()
+                  .map((m) => {
+                    const installed = installedIds.has(normalizeModelId(m.id));
+                    const marker = installed ? "✓ " : "";
+                    return `<option value="${escapeHtml(m.id)}" ${m.id === model.id ? "selected" : ""}>${marker}${escapeHtml(m.name || m.id)}</option>`;
+                  })
                   .join("")}
               </select>
             </div>
@@ -190,7 +208,7 @@
                 <div class="rows">
                   <div class="row"><div class="label">Author</div><div class="value">${family}</div></div>
                   <div class="row"><div class="label">Context Length</div><div class="value">${formatContext(model.contextLength)}</div></div>
-                  <div class="row"><div class="label">Reasoning</div><div>${yesNo(null)}</div></div>
+                  <div class="row"><div class="label">Reasoning</div><div>${yesNo(model.reasoning)}</div></div>
                   <div class="row"><div class="label">Provider</div><div class="value">${provider}</div></div>
                 </div>
                 <p class="desc">${modelDescription(model)}</p>
@@ -209,8 +227,8 @@
               <div class="section">
                 <div class="rows">
                   <div class="row"><div class="label">Provider</div><div class="value">${provider}</div></div>
-                  <div class="row"><div class="label">Latency (p50)</div><div class="value">—</div></div>
-                  <div class="row"><div class="label">Throughput (p50)</div><div class="value">—</div></div>
+                  <div class="row"><div class="label">Latency (p50)</div><div class="value">${model.latencyP50Sec ? `${model.latencyP50Sec}s` : "—"}</div></div>
+                  <div class="row"><div class="label">Throughput (p50)</div><div class="value">${model.throughputP50TokensPerSec ? `${model.throughputP50TokensPerSec} tok/s` : "—"}</div></div>
                 </div>
               </div>
 
@@ -273,6 +291,7 @@
         try {
           const { data, path } = await fetchReport();
           allModels = Array.isArray(data.models) ? data.models : [];
+          installedIds = new Set(allModels.filter((m) => m.installed).map((m) => normalizeModelId(m.id)));
           if (!allModels.length) {
             throw new Error("No models found in model_comparison.json");
           }
@@ -280,7 +299,8 @@
           slots = allModels.slice(0, MAX_COLUMNS).map((model) => model.id);
           while (slots.length < MAX_COLUMNS) slots.push(allModels[0].id);
 
-          status.textContent = `Loaded ${allModels.length} models from ${path}.`; 
+          const recommendations = data.hardwareRecommendations?.bestInstalledLocal || data.hardwareRecommendations?.bestLocalCandidates || [];
+          status.textContent = `Loaded ${allModels.length} models from ${path}. Recommended for this hardware: ${recommendations.slice(0, 3).join(", ") || "n/a"}.`; 
           render();
         } catch (error) {
           status.classList.add("error");

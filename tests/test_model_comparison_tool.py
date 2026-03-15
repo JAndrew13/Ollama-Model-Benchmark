@@ -57,5 +57,58 @@ class TransformTests(unittest.TestCase):
         self.assertEqual(entry["pricing"]["inputPerMTokensUSD"], 0.06)
 
 
+class MergeAndRecommendationTests(unittest.TestCase):
+    def test_merge_entry_fills_blanks(self):
+        base = {
+            "id": "qwen3:8b",
+            "name": "qwen3:8b",
+            "family": "",
+            "contextLength": None,
+            "parametersB": 0,
+            "inputModalities": [],
+            "outputModalities": ["text"],
+            "pricing": {"inputPerMTokensUSD": 0.0, "outputPerMTokensUSD": 0.0, "notes": ""},
+            "installed": True,
+        }
+        fallback = {
+            "id": "qwen3:8b",
+            "name": "Qwen3 8B",
+            "family": "qwen",
+            "contextLength": 131072,
+            "parametersB": 8,
+            "inputModalities": ["text"],
+            "outputModalities": ["text"],
+            "pricing": {"inputPerMTokensUSD": 0.12, "outputPerMTokensUSD": 0.35, "notes": "OpenRouter API pricing"},
+            "installed": False,
+        }
+        merged = mct.merge_entry(base, fallback)
+        self.assertEqual(merged["family"], "qwen")
+        self.assertEqual(merged["contextLength"], 131072)
+        self.assertEqual(merged["pricing"]["inputPerMTokensUSD"], 0.12)
+        self.assertTrue(merged["installed"])
+
+    def test_build_hardware_recommendations(self):
+        entries = [
+            {
+                "id": "installed-local",
+                "compatibilityScore": 1,
+                "installed": True,
+                "provider": "ollama",
+                "pricing": {"inputPerMTokensUSD": 0.0, "outputPerMTokensUSD": 0.0},
+            },
+            {
+                "id": "remote-api",
+                "compatibilityScore": 3,
+                "installed": False,
+                "provider": "openrouter",
+                "pricing": {"inputPerMTokensUSD": 0.01, "outputPerMTokensUSD": 0.02},
+            },
+        ]
+        recs = mct.build_hardware_recommendations(entries)
+        self.assertIn("installed-local", recs["bestInstalledLocal"])
+        self.assertIn("installed-local", recs["bestLocalCandidates"])
+        self.assertIn("remote-api", recs["bestApiCandidates"])
+
+
 if __name__ == "__main__":
     unittest.main()

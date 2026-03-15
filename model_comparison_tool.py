@@ -16,6 +16,8 @@ from urllib import request
 
 OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+DEFAULT_BENCHMARK_PATH = "model-benchmark.json"
+DEFAULT_CATALOG_PATH = "model-comparison.json"
 
 
 def log(message: str) -> None:
@@ -93,6 +95,36 @@ def safe_float(value: Any) -> float:
         return float(value)
     except Exception:
         return 0.0
+
+
+def normalize_model_id(value: str | None) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    if ":latest" in raw:
+        raw = raw.replace(":latest", "")
+    return raw
+
+
+def first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if isinstance(value, (list, dict)) and not value:
+            continue
+        if isinstance(value, (int, float)) and value == 0:
+            continue
+        return value
+    return None
+
+
+def read_json_file(path: str) -> Any:
+    file_path = Path(path)
+    if not file_path.exists():
+        return None
+    return json.loads(file_path.read_text(encoding="utf-8-sig"))
 
 
 def score_local_compatibility(required_gb: float, hardware: dict[str, Any]) -> int:
@@ -178,6 +210,10 @@ def ollama_to_entry(model: dict[str, Any], hardware: dict[str, Any]) -> dict[str
         "compatibilityScore": compatibility,
         "compatibilityLabel": compatibility_label(compatibility),
         "executionRecommendation": recommend_execution_mode(compatibility, has_api_pricing=False),
+        "installed": True,
+        "reasoning": None,
+        "latencyP50Sec": None,
+        "throughputP50TokensPerSec": None,
     }
 
 
@@ -228,6 +264,109 @@ def openrouter_to_entry(model: dict[str, Any], hardware: dict[str, Any]) -> dict
         "compatibilityScore": compatibility,
         "compatibilityLabel": compatibility_label(compatibility),
         "executionRecommendation": recommend_execution_mode(compatibility, has_api_pricing=True),
+        "installed": False,
+        "reasoning": None,
+        "latencyP50Sec": None,
+        "throughputP50TokensPerSec": None,
+    }
+
+
+def benchmark_to_entry(model: dict[str, Any], hardware: dict[str, Any]) -> dict[str, Any]:
+    params_b = safe_float(model.get("parameters"))
+    quantization = str(model.get("quantization") or "")
+    required_gb = estimate_required_memory_gb(size_bytes=0, parameter_billions=params_b, quantization=quantization)
+    compatibility = score_local_compatibility(required_gb, hardware)
+    model_id = str(model.get("id") or model.get("name") or "")
+    return {
+        "id": model_id,
+        "name": model.get("name") or model_id,
+        "family": str(model.get("family") or model.get("architecture") or "unknown"),
+        "version": model_id,
+        "provider": str(model.get("api") or "ollama"),
+        "contextLength": model.get("contextWindow") or model.get("maxTokens"),
+        "parametersB": params_b,
+        "quantization": quantization,
+        "sizeGB": 0.0,
+        "requiredMemoryGB": required_gb,
+        "supportsToolUse": "tools" in (model.get("capabilities") or []),
+        "inputModalities": model.get("input") or ["text"],
+        "outputModalities": ["text"],
+        "pricing": {
+            "inputPerMTokensUSD": 0.0,
+            "outputPerMTokensUSD": 0.0,
+            "notes": "Local benchmark metadata",
+        },
+        "compatibilityScore": compatibility,
+        "compatibilityLabel": compatibility_label(compatibility),
+        "executionRecommendation": recommend_execution_mode(compatibility, has_api_pricing=False),
+        "installed": True,
+        "reasoning": bool(model.get("reasoning")),
+        "latencyP50Sec": safe_float(model.get("firstTokenLatencySec")) or None,
+        "throughputP50TokensPerSec": safe_float(model.get("tokensPerSecond")) or None,
+    }
+
+
+def merge_entry(base: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    scalar_fields = [
+        "name",
+        "family",
+        "version",
+        "provider",
+        "contextLength",
+        "parametersB",
+        "quantization",
+        "sizeGB",
+        "requiredMemoryGB",
+        "supportsToolUse",
+        "compatibilityScore",
+        "compatibilityLabel",
+        "executionRecommendation",
+        "reasoning",
+        "latencyP50Sec",
+        "throughputP50TokensPerSec",
+    ]
+    for field in scalar_fields:
+        preferred = first_non_empty(merged.get(field), fallback.get(field))
+        if preferred is not None:
+            merged[field] = preferred
+
+    merged["inputModalities"] = first_non_empty(merged.get("inputModalities"), fallback.get("inputModalities")) or ["text"]
+    merged["outputModalities"] = first_non_empty(merged.get("outputModalities"), fallback.get("outputModalities")) or ["text"]
+    merged["installed"] = bool(merged.get("installed") or fallback.get("installed"))
+
+    fallback_pricing = fallback.get("pricing") or {}
+    merged_pricing = merged.get("pricing") or {}
+    merged["pricing"] = {
+        "inputPerMTokensUSD": first_non_empty(
+            merged_pricing.get("inputPerMTokensUSD"), fallback_pricing.get("inputPerMTokensUSD")
+        )
+        or 0.0,
+        "outputPerMTokensUSD": first_non_empty(
+            merged_pricing.get("outputPerMTokensUSD"), fallback_pricing.get("outputPerMTokensUSD")
+        )
+        or 0.0,
+        "notes": first_non_empty(merged_pricing.get("notes"), fallback_pricing.get("notes")) or "",
+    }
+    return merged
+
+
+def build_hardware_recommendations(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    ranked = sorted(
+        entries,
+        key=lambda item: (
+            item.get("compatibilityScore", 5),
+            not bool(item.get("installed")),
+            item["pricing"].get("inputPerMTokensUSD", 0) + item["pricing"].get("outputPerMTokensUSD", 0),
+        ),
+    )
+    best_local = [item["id"] for item in ranked if item.get("compatibilityScore", 5) <= 2][:5]
+    best_installed = [item["id"] for item in ranked if item.get("installed") and item.get("compatibilityScore", 5) <= 3][:5]
+    best_api = [item["id"] for item in ranked if item.get("provider") == "openrouter"][:5]
+    return {
+        "bestLocalCandidates": best_local,
+        "bestInstalledLocal": best_installed,
+        "bestApiCandidates": best_api,
     }
 
 
@@ -299,10 +438,84 @@ def collect_data(openrouter_api_key: str | None = None) -> dict[str, Any]:
         openrouter_models = []
         source_errors.append(f"openrouter: {exc}")
 
+    benchmark_models = []
+    try:
+        benchmark_payload = read_json_file(DEFAULT_BENCHMARK_PATH)
+        if isinstance(benchmark_payload, list):
+            benchmark_models = benchmark_payload
+    except Exception as exc:
+        source_errors.append(f"model-benchmark.json: {exc}")
+
+    catalog_models = []
+    try:
+        catalog_payload = read_json_file(DEFAULT_CATALOG_PATH)
+        if isinstance(catalog_payload, dict):
+            catalog_models = catalog_payload.get("models") or []
+        elif isinstance(catalog_payload, list):
+            catalog_models = catalog_payload
+    except Exception as exc:
+        source_errors.append(f"model-comparison.json: {exc}")
+
     entries = [ollama_to_entry(model, hardware) for model in ollama_models]
     entries.extend(openrouter_to_entry(model, hardware) for model in openrouter_models)
+    entries.extend(benchmark_to_entry(model, hardware) for model in benchmark_models)
 
-    family_summary = build_family_summary(entries)
+    for model in catalog_models:
+        if not isinstance(model, dict):
+            continue
+        model_id = str(model.get("id") or model.get("name") or "")
+        if model_id:
+            entries.append(
+                {
+                    "id": model_id,
+                    "name": model.get("name") or model_id,
+                    "family": str(model.get("family") or "unknown"),
+                    "version": model.get("version") or model_id,
+                    "provider": model.get("provider") or "unknown",
+                    "contextLength": model.get("contextLength"),
+                    "parametersB": safe_float(model.get("parametersB")),
+                    "quantization": str(model.get("quantization") or ""),
+                    "sizeGB": safe_float(model.get("sizeGB")),
+                    "requiredMemoryGB": safe_float(model.get("requiredMemoryGB")),
+                    "supportsToolUse": model.get("supportsToolUse"),
+                    "inputModalities": model.get("inputModalities") or ["text"],
+                    "outputModalities": model.get("outputModalities") or ["text"],
+                    "pricing": model.get("pricing") or {
+                        "inputPerMTokensUSD": 0.0,
+                        "outputPerMTokensUSD": 0.0,
+                        "notes": "Catalog import",
+                    },
+                    "compatibilityScore": int(model.get("compatibilityScore") or 5),
+                    "compatibilityLabel": model.get("compatibilityLabel") or compatibility_label(5),
+                    "executionRecommendation": model.get("executionRecommendation") or "unknown",
+                    "installed": bool(model.get("installed")),
+                    "reasoning": model.get("reasoning"),
+                    "latencyP50Sec": model.get("latencyP50Sec"),
+                    "throughputP50TokensPerSec": model.get("throughputP50TokensPerSec"),
+                }
+            )
+
+    merged_by_id: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        norm_id = normalize_model_id(entry.get("id"))
+        if not norm_id:
+            continue
+        if norm_id in merged_by_id:
+            merged_by_id[norm_id] = merge_entry(merged_by_id[norm_id], entry)
+        else:
+            merged_by_id[norm_id] = entry
+
+    final_entries = sorted(
+        merged_by_id.values(),
+        key=lambda item: (
+            not bool(item.get("installed")),
+            item.get("compatibilityScore", 5),
+            str(item.get("name") or item.get("id") or "").lower(),
+        ),
+    )
+
+    family_summary = build_family_summary(final_entries)
+    hardware_recommendations = build_hardware_recommendations(final_entries)
 
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -314,8 +527,11 @@ def collect_data(openrouter_api_key: str | None = None) -> dict[str, Any]:
         "sourceErrors": source_errors,
         "summary": {
             "totalModels": len(entries),
+            "totalUniqueModels": len(final_entries),
             "ollamaModels": len(ollama_models),
             "openrouterModels": len(openrouter_models),
+            "benchmarkModels": len(benchmark_models),
+            "catalogModels": len(catalog_models),
             "families": len(family_summary),
         },
         "compatibilityScale": {
@@ -326,7 +542,8 @@ def collect_data(openrouter_api_key: str | None = None) -> dict[str, Any]:
             "5": "Absolutely not compatible",
         },
         "familyRecommendations": family_summary,
-        "models": entries,
+        "hardwareRecommendations": hardware_recommendations,
+        "models": final_entries,
     }
 
 
