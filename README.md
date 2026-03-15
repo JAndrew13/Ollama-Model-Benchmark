@@ -50,3 +50,26 @@ outputs/
 ```
 
 Each report entry includes metadata, capabilities, runtime performance, efficiency indicators, and workload recommendations.
+
+
+## Model Comparison Tool (Ollama + OpenRouter)
+
+Use `model_comparison_tool.py` to build a unified comparison JSON across local Ollama models and OpenRouter-hosted models, with hardware-aware compatibility scoring.
+
+```bash
+python model_comparison_tool.py --output outputs/model_comparison.json
+```
+
+Optional API key (also supported via `OPENROUTER_API_KEY`):
+
+```bash
+python model_comparison_tool.py --openrouter-api-key "$OPENROUTER_API_KEY"
+```
+
+The generated JSON includes:
+
+- Local hardware scan (CPU, RAM, GPU/VRAM)
+- Per-model details (family, version, params, quantization, context, tool support, modalities, cost)
+- Compatibility score from **1 (best local fit)** to **5 (not locally compatible)**
+- Execution recommendation (`local-preferred`, `hybrid`, `api-preferred`)
+- Family-level local/API recommendations
